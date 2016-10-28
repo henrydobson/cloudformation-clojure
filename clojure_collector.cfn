@@ -12,7 +12,7 @@
       "Description" : "enter true or false."
     },
     "OperatorEmail": {
-      "Default": "henrydobson@me.com",
+      "Default": "example@email.com",
       "Description": "Email address to notify if there are any operational issues",
       "Type": "String"
     }
