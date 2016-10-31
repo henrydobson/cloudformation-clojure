@@ -202,38 +202,36 @@ Resources:
   CPUAlarmHigh:
     Type: "AWS::CloudWatch::Alarm"
     Properties:
-      ActionsEnabled: Yes
       AlarmActions:
-        - !Ref "ScaleUpPolicy"
-      AlarmDescription: "Scale-up if CPU > 75% for 10 minutes"
+      - !Ref "ScaleUpPolicy"
+      AlarmDescription: "Scale-up if CPU > 90% for 1 minute"
       ComparisonOperator: "GreaterThanThreshold"
       Dimensions:
-        - Name: "AutoScalingGroupName"
-        - Value: !Ref "ClojureCollectorGroup"
-      EvaluationPeriods: "2"
+      - Name: "AutoScalingGroupName"
+        Value: !Ref "ClojureCollectorGroup"
+      EvaluationPeriods: "3"
       MetricName: "CPUUtilization"
       Namespace: "AWS/EC2"
-      Period: "600"
+      Period: "60"
       Statistic: "Average"
-      Threshold: "75"
+      Threshold: "90"
       Unit: "Percent"
   CPUAlarmLow:
     Type: "AWS::CloudWatch::Alarm"
     Properties:
-      ActionsEnabled: Yes
       AlarmActions:
-        - !Ref "ScaleDownPolicy"
-      AlarmDescription: "Scale-up if CPU < 50% for 20 minutes"
+      - !Ref "ScaleDownPolicy"
+      AlarmDescription: "Scale-up if CPU < 70% for 5 minutes"
       ComparisonOperator: "LessThanThreshold"
       Dimensions:
-        - Name: "AutoScalingGroupName"
-        - Value: !Ref "ClojureCollectorGroup"
+      - Name: "AutoScalingGroupName"
+        Value: !Ref "ClojureCollectorGroup"
       EvaluationPeriods: "2"
       MetricName: "CPUUtilization"
       Namespace: "AWS/EC2"
-      Period: "1200"
+      Period: "300"
       Statistic: "Average"
-      Threshold: "75"
+      Threshold: "70"
       Unit: "Percent"
   ElasticLoadBalancer:
     Type: "AWS::ElasticLoadBalancing::LoadBalancer"
