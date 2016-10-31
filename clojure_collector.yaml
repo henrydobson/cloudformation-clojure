@@ -181,7 +181,7 @@ Resources:
               #chmod 600 /root/.ssh/config
               yum update -y
               yum install -y git ansible
-              ansible-pull -d ~/playbooks/ansible-tomcat -i 'localhost,' -U https://github.com/henrydobson/ansible-tomcat.git --accept-host-key
+              ansible-pull -d ~/playbooks/ansible-tomcat -i 'localhost,' -U https://github.com/henrydobson/ansible-clojure.git --accept-host-key
             - { s3url: !Join [ /, [ "s3:/", !Select [0, !Ref "S3ProvisioningBucket"], !Select [1, !Ref "S3ProvisioningBucket"] ] ] }
   ScaleUpPolicy:
     Type: "AWS::AutoScaling::ScalingPolicy"
