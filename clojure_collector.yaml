@@ -109,11 +109,15 @@ Resources:
         FromPort: '22'
         ToPort: '22'
         CidrIp: !Ref "PermittedSSHSourceIP"
+      - IpProtocol: tcp
+        FromPort: '8080'
+        ToPort: '8080'
+        SourceSecurityGroupId: !GetAtt [ ELBSecurityGroup, GroupId ]
       SecurityGroupEgress:
-      - CidrIp: 127.0.0.1/32
+      - CidrIp: 0.0.0.0/0
         IpProtocol: "-1"
       VpcId: !Ref "WorkingVPC"
-  WebSecurityGroup:
+  ELBSecurityGroup:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
       GroupDescription: Allow TCP traffic to group on port 8080.
@@ -123,7 +127,7 @@ Resources:
         ToPort: '8080'
         CidrIp: !Ref "PermittedSSHSourceIP"
       SecurityGroupEgress:
-      - CidrIp: 127.0.0.1/32
+      - CidrIp: 0.0.0.0/0
         IpProtocol: "-1"
       VpcId: !Ref "WorkingVPC"
   ClojureCollectorGroup:
@@ -141,7 +145,7 @@ Resources:
         - autoscaling:EC2_INSTANCE_LAUNCH_ERROR
         - autoscaling:EC2_INSTANCE_TERMINATE_ERROR
       HealthCheckGracePeriod: "300"
-      HealthCheckType: "EC2"
+      HealthCheckType: "ELB"
       LoadBalancerNames:
         - !Ref "ElasticLoadBalancer"
     UpdatePolicy:
@@ -154,9 +158,9 @@ Resources:
     Type: "AWS::AutoScaling::LaunchConfiguration"
     Properties:
       SecurityGroups:
-        - !Ref "InstanceSecurityGroup"
+        - Ref: "InstanceSecurityGroup"
       BlockDeviceMappings:
-        - DeviceName: "/dev/sda1"
+        - DeviceName: "/dev/xvda"
           Ebs:
             VolumeSize: "100"
             VolumeType: "gp2"
@@ -168,8 +172,6 @@ Resources:
         !FindInMap [ "EnviromentTypeToInstanceType", Ref: "EnvironmentType", 64 ]
       InstanceMonitoring: false
       KeyName: !Ref "KeyPair"
-      SecurityGroups:
-        - !Ref "InstanceSecurityGroup"
       UserData:
         !Base64
           Fn::Sub:
@@ -179,9 +181,10 @@ Resources:
               #chmod 400 /root/.ssh/bitbucket_secret_key
               #aws s3 cp ${s3url} /root/.ssh/config
               #chmod 600 /root/.ssh/config
-              yum update -y
-              yum install -y git ansible
-              ansible-pull -d ~/playbooks/ansible-clojure -i 'localhost,' -U https://github.com/henrydobson/ansible-clojure.git --accept-host-key
+              sudo yum -y update
+              sudo yum install -y git
+              sudo pip install ansible
+              /usr/local/bin/ansible-pull -d ~/playbooks/ansible-clojure -i 'localhost,' -U https://github.com/henrydobson/ansible-clojure.git --accept-host-key
             - { s3url: !Join [ /, [ "s3:/", !Select [0, !Ref "S3ProvisioningBucket"], !Select [1, !Ref "S3ProvisioningBucket"] ] ] }
   ScaleUpPolicy:
     Type: "AWS::AutoScaling::ScalingPolicy"
@@ -191,14 +194,6 @@ Resources:
       Cooldown: "60"
       PolicyType: "SimpleScaling"
       ScalingAdjustment: 1
-  ScaleDownPolicy:
-    Type: "AWS::AutoScaling::ScalingPolicy"
-    Properties:
-      AdjustmentType: "ChangeInCapacity"
-      AutoScalingGroupName: !Ref "ClojureCollectorGroup"
-      Cooldown: "60"
-      PolicyType: "SimpleScaling"
-      ScalingAdjustment: -1
   CPUAlarmHigh:
     Type: "AWS::CloudWatch::Alarm"
     Properties:
@@ -216,28 +211,11 @@ Resources:
       Statistic: "Average"
       Threshold: "70"
       Unit: "Percent"
-  CPUAlarmLow:
-    Type: "AWS::CloudWatch::Alarm"
-    Properties:
-      AlarmActions:
-      - !Ref "ScaleDownPolicy"
-      AlarmDescription: "Scale-down if CPU < 20% for 10 minutes"
-      ComparisonOperator: "LessThanThreshold"
-      Dimensions:
-      - Name: "AutoScalingGroupName"
-        Value: !Ref "ClojureCollectorGroup"
-      EvaluationPeriods: "2"
-      MetricName: "CPUUtilization"
-      Namespace: "AWS/EC2"
-      Period: "300"
-      Statistic: "Average"
-      Threshold: "20"
-      Unit: "Percent"
   ElasticLoadBalancer:
     Type: "AWS::ElasticLoadBalancing::LoadBalancer"
     Properties:
       SecurityGroups:
-        - !Ref "WebSecurityGroup"
+        - !Ref "ELBSecurityGroup"
       Scheme: internet-facing
       AvailabilityZones:
         Fn::GetAZs: ""
@@ -251,7 +229,7 @@ Resources:
         HealthyThreshold: '3'
         UnhealthyThreshold: '5'
         Interval: '30'
-        Timeout: '5'
+        Timeout: '10'
       ConnectionDrainingPolicy:
         Enabled: 'true'
         Timeout: '60'
