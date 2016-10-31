@@ -73,8 +73,9 @@ Resources:
     Type: "AWS::SNS::Topic"
     Properties:
       Subscription:
-        Endpoint: !Ref "OperatorEmail"
-        Protocol: "email"
+        -
+          Endpoint: !Ref "OperatorEmail"
+          Protocol: "email"
   ClojureRole:
     Type: "AWS::IAM::Role"
     Properties:
