@@ -238,28 +238,28 @@ Resources:
       Statistic: "Average"
       Threshold: "75"
       Unit: "Percent"
-ElasticLoadBalancer:
-  Type: "AWS::ElasticLoadBalancing::LoadBalancer"
-  Properties:
-    SecurityGroups: !Ref "WebSecurityGroup"
-    Scheme: internet-facing
-    AvailabilityZones:
-      Fn::GetAZs: ""
-    Listeners:
-    - LoadBalancerPort: '8080'
-      InstancePort: '8080'
-      Protocol: TCP
-      InstanceProtocol: TCP
-      Protocol: HTTP
-    HealthCheck:
-      Target: HTTP:8080/i
-      HealthyThreshold: '3'
-      UnhealthyThreshold: '5'
-      Interval: '30'
-      Timeout: '5'
-    ConnectionDrainingPolicy:
-      Enabled: 'true'
-      Timeout: '60'
+  ElasticLoadBalancer:
+    Type: "AWS::ElasticLoadBalancing::LoadBalancer"
+    Properties:
+      SecurityGroups: !Ref "WebSecurityGroup"
+      Scheme: internet-facing
+      AvailabilityZones:
+        Fn::GetAZs: ""
+      Listeners:
+      - LoadBalancerPort: '8080'
+        InstancePort: '8080'
+        Protocol: TCP
+        InstanceProtocol: TCP
+        Protocol: HTTP
+      HealthCheck:
+        Target: HTTP:8080/i
+        HealthyThreshold: '3'
+        UnhealthyThreshold: '5'
+        Interval: '30'
+        Timeout: '5'
+      ConnectionDrainingPolicy:
+        Enabled: 'true'
+        Timeout: '60'
 Outputs:
   ELB:
     Description: The ElasticLoadBalancer URL.
