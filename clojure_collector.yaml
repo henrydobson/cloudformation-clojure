@@ -189,7 +189,6 @@ Resources:
       AdjustmentType: "ChangeInCapacity"
       AutoScalingGroupName: !Ref "ClojureCollectorGroup"
       Cooldown: "60"
-      MinAdjustmentMagnitude: 1
       PolicyType: "SimpleScaling"
       ScalingAdjustment: 1
   ScaleDownPolicy:
@@ -198,7 +197,6 @@ Resources:
       AdjustmentType: "ChangeInCapacity"
       AutoScalingGroupName: !Ref "ClojureCollectorGroup"
       Cooldown: "60"
-      MinAdjustmentMagnitude: 1
       PolicyType: "SimpleScaling"
       ScalingAdjustment: -1
   CPUAlarmHigh:
