@@ -1,17 +1,18 @@
 ---
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "This template "
+Description: "Deploy Clojure app with Tomcat 7 on Amazon Linux instance using UserData bootstrap and Ansible pull method to provision nodes in ASG."
 Metadata:
   Instances:
     Description: "These instances are part of an ASG. They have rights throught the ... role to access S3. This is to facilitate instance user data to provision the device for Ansible pull."
 Parameters:
   OperatorEmail:
-    Description: Email address to notify if there are any scaling operations
+    Description: Email address for scaling operation notifications.
     Type: String
     AllowedPattern: "([a-zA-Z0-9_\\-\\.]+)@((\\[[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.)|(([a-zA-Z0-9\\-]+\\.)+))([a-zA-Z]{2,4}|[0-9]{1,3})(\\]?)"
+    Default: "henrydobson@me.com"
     ConstraintDescription: Must be a valid email address.
   KeyPair:
-    Description: Amazon EC2 KeyPair
+    Description: Select your Amazon EC2 KeyPair.
     Type: "AWS::EC2::KeyPair::KeyName"
     ConstraintDescription: Must be an existing EC2 KeyPair.
   PermittedSSHSourceIP:
@@ -31,10 +32,10 @@ Parameters:
       - eu-central-1
     ConstraintDescription: Must be eu-west-1 or eu-central-1.
   WorkingVPC:
-    Description: The preffered AWS VPC.
+    Description: The preferred AWS VPC.
     Type: "AWS::EC2::VPC::Id"
   EnvironmentType:
-    Description: The environment type
+    Description: The environment type.
     Type: String
     Default: testing
     AllowedValues:
@@ -42,17 +43,9 @@ Parameters:
       - testing
     ConstraintDescription: Must be a production or testing
   S3ProvisioningBucket:
-    Description: The S3 bucket used for provisioning EC2 instances and the object used.
+    Description: Comma separated list for 1) S3 bucket name and 2) object for provisioning EC2 instances in UserData.
     Type: CommaDelimitedList
     ConstraintDescription: 1st value must contain the S3 bucket name, 2nd value must contain an S3 object.
-  InstanceTypeParameter:
-    Type: String
-    Default: t2.micro
-    AllowedValues:
-      - t2.micro
-      - m1.small
-      - m1.large
-    Description: Enter t1.micro, m1.small, or m1.large. Default is t1.micro.
 Mappings:
   RegionAndInstanceTypeToAMIID:
     eu-central-1:
@@ -140,14 +133,18 @@ Resources:
         Fn::GetAZs: ""
       MinSize: "1"
       MaxSize: "10"
+      MetricsCollection:
+        - Grenularity: 5Minute
+        - Metrics:
+          - "CPUUtilization"
       LaunchConfigurationName: !Ref "ClojureCollectorLaunchConfig"
       NotificationConfigurations:
       - TopicARN: !Ref "NotificationTopic"
         NotificationTypes:
         - autoscaling:EC2_INSTANCE_LAUNCH_ERROR
         - autoscaling:EC2_INSTANCE_TERMINATE_ERROR
-      HealthCheckGracePeriod: "60"
-      HealthCheckType: "ELB"
+      HealthCheckGracePeriod: "300"
+      HealthCheckType: "EC2"
       LoadBalancerNames:
         - !Ref "ElasticLoadBalancer"
   ClojureCollectorLaunchConfig:
@@ -181,7 +178,7 @@ Resources:
               #chmod 600 /root/.ssh/config
               yum update -y
               yum install -y git ansible
-              ansible-pull -d ~/playbooks/ansible-tomcat -i 'localhost,' -U https://github.com/henrydobson/ansible-clojure.git --accept-host-key
+              ansible-pull -d ~/playbooks/ansible-clojure -i 'localhost,' -U https://github.com/henrydobson/ansible-clojure.git --accept-host-key
             - { s3url: !Join [ /, [ "s3:/", !Select [0, !Ref "S3ProvisioningBucket"], !Select [1, !Ref "S3ProvisioningBucket"] ] ] }
   ScaleUpPolicy:
     Type: "AWS::AutoScaling::ScalingPolicy"
@@ -221,7 +218,7 @@ Resources:
     Properties:
       AlarmActions:
       - !Ref "ScaleDownPolicy"
-      AlarmDescription: "Scale-up if CPU < 70% for 5 minutes"
+      AlarmDescription: "Scale-down if CPU < 70% for 5 minutes"
       ComparisonOperator: "LessThanThreshold"
       Dimensions:
       - Name: "AutoScalingGroupName"
@@ -247,7 +244,7 @@ Resources:
         Protocol: HTTP
         InstanceProtocol: HTTP
       HealthCheck:
-        Target: HTTP:8080/i
+        Target: HTTP:8080/clojure-collector-1.1.0-standalone/i
         HealthyThreshold: '3'
         UnhealthyThreshold: '5'
         Interval: '30'
