@@ -226,7 +226,7 @@ Resources:
       Dimensions:
       - Name: "AutoScalingGroupName"
         Value: !Ref "ClojureCollectorGroup"
-      EvaluationPeriods: "2"
+      EvaluationPeriods: "3"
       MetricName: "CPUUtilization"
       Namespace: "AWS/EC2"
       Period: "300"
@@ -258,4 +258,4 @@ Resources:
 Outputs:
   ELB:
     Description: The ElasticLoadBalancer URL.
-    Value: !Join [ "", [ "http://", !GetAtt [ ElasticLoadBalancer, DNSName ] ] ]
+    Value: !Join [ "", [ "http://", !GetAtt [ ElasticLoadBalancer, DNSName ], ":8080/" ] ]
