@@ -47,23 +47,23 @@ Parameters:
     ConstraintDescription: 1st value must contain the S3 bucket name, 2nd value must contain an S3 object.
   InstanceTypeParameter:
     Type: String
-    Default: t1.micro
+    Default: t2.micro
     AllowedValues:
-      - t1.micro
+      - t2.micro
       - m1.small
       - m1.large
     Description: Enter t1.micro, m1.small, or m1.large. Default is t1.micro.
 Mappings:
   RegionAndInstanceTypeToAMIID:
     eu-central-1:
-      testing: "ami-1345b87c"
+      testing: "ami-0044b96f"
       production: "ami-0044b96f"
     eu-west-1:
-      testing: "ami-0e10557d"
+      testing: "ami-d41d58a7"
       production: "ami-d41d58a7"
   EnviromentTypeToInstanceType:
     testing:
-      "64": t1.micro
+      "64": t2.micro
     production:
       "64": m1.small
 Conditions:
@@ -110,32 +110,28 @@ Resources:
   InstanceSecurityGroup:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
-      GroupDescription: Allow SSH traffic to group
+      GroupDescription: Allow SSH traffic to group.
       SecurityGroupIngress:
       - IpProtocol: tcp
         FromPort: '22'
         ToPort: '22'
         CidrIp: !Ref "PermittedSSHSourceIP"
       SecurityGroupEgress:
-      - IpProtocol: tcp
-        FromPort: '80'
-        ToPort: '80'
-        CidrIp: 0.0.0.0/0
+      - CidrIp: 127.0.0.1/32
+        IpProtocol: "-1"
       VpcId: !Ref "WorkingVPC"
   WebSecurityGroup:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
-      GroupDescription: Allow SSH traffic to group
+      GroupDescription: Allow TCP traffic to group on port 8080.
       SecurityGroupIngress:
       - IpProtocol: tcp
         FromPort: '8080'
         ToPort: '8080'
         CidrIp: !Ref "PermittedSSHSourceIP"
       SecurityGroupEgress:
-      - IpProtocol: tcp
-        FromPort: '80'
-        ToPort: '80'
-        CidrIp: 0.0.0.0/0
+      - CidrIp: 127.0.0.1/32
+        IpProtocol: "-1"
       VpcId: !Ref "WorkingVPC"
   ClojureCollectorGroup:
     Type: "AWS::AutoScaling::AutoScalingGroup"
@@ -242,34 +238,28 @@ Resources:
       Statistic: "Average"
       Threshold: "75"
       Unit: "Percent"
-  Listener:
-    Type: "AWS::ElasticLoadBalancingV2::Listener"
-    Properties:
-      DefaultActions:
-      - Type: forward
-        TargetGroupArn: !Ref "ClojureCollectorGroup"
-      LoadBalancerArn: !Ref "ElasticLoadBalancer"
-      Port: 8080
+ElasticLoadBalancer:
+  Type: "AWS::ElasticLoadBalancing::LoadBalancer"
+  Properties:
+    SecurityGroups: !Ref "WebSecurityGroup"
+    Scheme: internet-facing
+    AvailabilityZones:
+      Fn::GetAZs: ""
+    Listeners:
+    - LoadBalancerPort: '8080'
+      InstancePort: '8080'
+      Protocol: TCP
+      InstanceProtocol: TCP
       Protocol: HTTP
-  ElasticLoadBalancer:
-    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
-    Properties:
-      Name: "clojure-test-elb"
-      Scheme: "internet-facing"
-      SecurityGroups:
-        - !Ref "WebSecurityGroup"
-      Subnets:
-        - String
-  ELBTargetGroup:
-    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
-    Properties:
-      HealthCheckIntervalSeconds: 60
-      UnhealthyThresholdCount: 10
-      HealthCheckPath: /
-      Name: ClojureTargetGroup
-      Port: 8080
-      Protocol: HTTP
-      VpcId: !Ref "WorkingVPC"
+    HealthCheck:
+      Target: HTTP:8080/i
+      HealthyThreshold: '3'
+      UnhealthyThreshold: '5'
+      Interval: '30'
+      Timeout: '5'
+    ConnectionDrainingPolicy:
+      Enabled: 'true'
+      Timeout: '60'
 Outputs:
   ELB:
     Description: The ElasticLoadBalancer URL.
