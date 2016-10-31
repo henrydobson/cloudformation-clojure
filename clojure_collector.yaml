@@ -142,11 +142,10 @@ Resources:
       MaxSize: "10"
       LaunchConfigurationName: !Ref "ClojureCollectorLaunchConfig"
       NotificationConfigurations:
-        - TopicARN:
-          - !Ref "NotificationTopic"
-        - NotificationTypes:
-          - autoscaling:EC2_INSTANCE_LAUNCH_ERROR
-          - autoscaling:EC2_INSTANCE_TERMINATE_ERROR
+      - TopicARN: !Ref "NotificationTopic"
+        NotificationTypes:
+        - autoscaling:EC2_INSTANCE_LAUNCH_ERROR
+        - autoscaling:EC2_INSTANCE_TERMINATE_ERROR
       HealthCheckGracePeriod: "60"
       HealthCheckType: "ELB"
       LoadBalancerNames:
