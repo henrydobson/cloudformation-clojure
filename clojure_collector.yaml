@@ -99,7 +99,7 @@ Resources:
               -
                 Effect: "Allow"
                 Action: "s3:GetObject"
-                Resource: !Join [ "", [ "arn:aws:s3:::", !Select [ 0, !Ref "S3ProvisioningBucket" ], "/*" ] ]
+                Resource: !Join [ "", [ "arn:aws:s3:::", !Select [ 0, !Ref "S3ProvisioningBucket" ], !Select [ 1, !Ref "S3ProvisioningBucket" ], "/*" ] ]
   ClojureInstanceProfile:
     Type: "AWS::IAM::InstanceProfile"
     Properties:
@@ -241,16 +241,16 @@ Resources:
   ElasticLoadBalancer:
     Type: "AWS::ElasticLoadBalancing::LoadBalancer"
     Properties:
-      SecurityGroups: !Ref "WebSecurityGroup"
+      SecurityGroups:
+        - !Ref "WebSecurityGroup"
       Scheme: internet-facing
       AvailabilityZones:
         Fn::GetAZs: ""
       Listeners:
       - LoadBalancerPort: '8080'
         InstancePort: '8080'
-        Protocol: TCP
-        InstanceProtocol: TCP
         Protocol: HTTP
+        InstanceProtocol: HTTP
       HealthCheck:
         Target: HTTP:8080/i
         HealthyThreshold: '3'
