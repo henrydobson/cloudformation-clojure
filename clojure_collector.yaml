@@ -1,28 +1,50 @@
 ---
 AWSTemplateFormatVersion: "2010-09-09"
-
-Description: ""
-
+Description: "This template "
 Metadata:
   Instances:
-    Description: "Information about the instances"
-
+    Description: "These instances are part of an ASG. They have rights throught the ... role to access S3. This is to facilitate instance user data to provision the device for Ansible pull."
 Parameters:
   OperatorEmail:
     Description: Email address to notify if there are any scaling operations
     Type: String
     AllowedPattern: ([a-zA-Z0-9_\\-\\.]+)@((\\[[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.)|(([a-zA-Z0-9\\-]+\\.)+))([a-zA-Z]{2,4}|[0-9]{1,3})(\\]?)
     ConstraintDescription: Must be a valid email address.
-
+  KeyPair:
+    Description: Amazon EC2 KeyPair
+    Type: "AWS::EC2::KeyPair::KeyName"
+    ConstraintDescription: Must be an existing EC2 KeyPair.
+  PermittedSSHSourceIP:
+    Description: The IP addresses that can be used to SSH the EC2 instances.
+    Type: String
+    MinLength: 9
+    MaxLength: 18
+    Default: 0.0.0.0/0
+    AllowedPattern: (\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})
+    ConstraintDescription: Must be valid IP CIDR range in the form of x.x.x.x/x
+  AWSRegion:
+    Description: The desired AWS Region.
+    Type: String
+    Default: eu-west-1
+    AllowedValues:
+      - eu-west-1
+      - eu-central-1
+    ConstraintDescription: Must be eu-west-1 or eu-central-1.
+  WorkingVPC:
+    Description: The preffered AWS VPC.
+    Type: "AWS::EC2::VPC::Id"
   EnvironmentType:
     Description: The environment type
     Type: String
-    Default: test
+    Default: testing
     AllowedValues:
       - production
-      - test
-    ConstraintDescription: Must be a production or test
-
+      - testing
+    ConstraintDescription: Must be a production or testing
+  S3ProvisioningBucket:
+    Description: The S3 bucket used for provisioning EC2 instances and the object used.
+    Type: CommaDelimitedList
+    ConstraintDescription: 1st value must contain the S3 bucket name, 2nd value must contain an S3 object.
   InstanceTypeParameter:
     Type: String
     Default: t1.micro
@@ -31,43 +53,87 @@ Parameters:
       - m1.small
       - m1.large
     Description: Enter t1.micro, m1.small, or m1.large. Default is t1.micro.
-
-  ClojureCollectorKeyPair:
-    Description: Amazon EC2 Key Pair
-    Type: "AWS::EC2::KeyPair::KeyName"
-
-  DBPwd:
-    NoEcho: true
-    Description: "The database admin account password"
-    Type: String
-    MinLength: "1"
-    MaxLength: "41"
-    AllowedPattern: "[a-zA-Z0-9]*"
-
 Mappings:
   RegionAndInstanceTypeToAMIID:
-    us-east-1:
-      test: "ami-8ff710e2"
-      production: "ami-f5f41398"
-    us-west-2:
-      test: "ami-eff1028f"
-      production: "ami-d0f506b0"
-
+    eu-central-1:
+      testing: "ami-1345b87c"
+      production: "ami-0044b96f"
+    eu-west-1:
+      testing: "ami-0e10557d"
+      production: "ami-d41d58a7"
   EnviromentTypeToInstanceType:
-    test: t1.micro
+    testing: t1.micro
     production: m1.small
-
 Conditions:
   CreateProductionResources: !Equals [ !Ref EnvironmentType, production ]
-
 Resources:
-  ClojureCollectorTopic:
+  NotificationTopic:
     Type: "AWS::SNS::Topic"
     Properties:
       Subscription:
         Endpoint: !Ref "OperatorEmail"
         Protocol: "email"
-
+  ClojureRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "s3.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      Policies:
+        -
+          PolicyName: "clojurerole"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Action: "s3:GetObject"
+                Resource: !Join [ "" [ arn:aws:s3:::, !Select [0, !Ref "S3ProvisioningBucket"], /* ] ]
+  ClojureInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Path: "/"
+      Roles:
+        -
+          Ref: "ClojureRole"
+  InstanceSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: Allow SSH traffic to group
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp: !Ref "PermittedSSHSourceIP"
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        CidrIp: 0.0.0.0/0
+      VpcId: !Ref "WorkingVPC"
+  WebSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: Allow SSH traffic to group
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '8080'
+        ToPort: '8080'
+        CidrIp: !Ref "PermittedSSHSourceIP"
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        CidrIp: 0.0.0.0/0
+      VpcId: !Ref "WorkingVPC"
   ClojureCollectorGroup:
     Type: "AWS::AutoScaling::AutoScalingGroup"
     Properties:
@@ -75,11 +141,9 @@ Resources:
         Fn::GetAZs: ""
       MinSize: "1"
       MaxSize: "10"
-      LaunchConfigurationName:
-        Ref: "ClojureCollectorLaunchConfig"
+      LaunchConfigurationName: !Ref "ClojureCollectorLaunchConfig"
       NotificationConfigurations:
-        - TopicARN:
-          Ref: "ClojureCollectorTopic"
+        - TopicARN: !Ref "NotificationTopic"
         - NotificationTypes:
           - autoscaling:EC2_INSTANCE_LAUNCH_ERROR
           - autoscaling:EC2_INSTANCE_TERMINATE_ERROR
@@ -87,29 +151,44 @@ Resources:
       HealthCheckType: "ELB"
       LoadBalancerNames:
         - !Ref "ElasticLoadBalancer"
-
   ClojureCollectorLaunchConfig:
     Type: "AWS::AutoScaling::LaunchConfiguration"
     Properties:
+      AssociatePublicIpAddress: False
       SecurityGroups:
-        -
+        - !Ref "ClojureSecurityGroup"
       BlockDeviceMappings:
         - DeviceName: "/dev/sda1"
           Ebs:
             VolumeSize: "100"
             VolumeType: "gp2"
+      EbsOptimized: False
+      IamInstanceProfile: !Ref "ClojureInstanceProfile"
       ImageId:
-        !FindInMap [ "RegionAndInstanceTypeToAMIID", !Ref "AWS::Region", !Ref "EnvironmentType"  ]
+        !FindInMap [ "RegionAndInstanceTypeToAMIID", Ref: "AWS::Region", Ref: "EnvironmentType"  ]
       InstanceType:
-        !FindInMap [ "EnviromentTypeToInstanceType", !Ref "EnvironmentType" ]
+        !FindInMap [ "EnviromentTypeToInstanceType", Ref: "EnvironmentType" ]
+      InstanceMonitoring: false
+      KeyName: !Ref "KeyPair"
+      SecurityGroups:
+        - !Ref "ClojureSecurityGroup"
       UserData:
         !Base64:
-          !Sub |
-            #!/bin/bash -xe
-            yum update -y aws-cfn-bootstrap
-            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource AutoScalingGroup --region ${AWS::Region}
+          !Sub
+            - |
+              #!/bin/bash -xe
 
-  ClojureCollectorScaleUpPolicy:
+              #aws s3 cp ${s3url} /root/.ssh/bitbucket_secret_key
+              #chmod 400 /root/.ssh/bitbucket_secret_key
+
+              #aws s3 cp ${s3url} /root/.ssh/config
+              #chmod 600 /root/.ssh/config
+
+              yum update -y
+              yum install -y git ansible
+              ansible-pull -d ~/playbooks/ansible-tomcat -i 'localhost,' -U https://github.com/henrydobson/ansible-tomcat.git --accept-host-key
+            - { s3url: !Join [ / [ s3:/, !Select [0, !Ref "S3ProvisioningBucket"], !Select [1, !Ref "S3ProvisioningBucket"] ] ] }
+  ScaleUpPolicy:
     Type: "AWS::AutoScaling::ScalingPolicy"
     Properties:
       AdjustmentType: "ChangeInCapacity"
@@ -118,8 +197,7 @@ Resources:
       MinAdjustmentMagnitude: 1
       PolicyType: "SimpleScaling"
       ScalingAdjustment: 1
-
-  ClojureCollectorScaleDownPolicy:
+  ScaleDownPolicy:
     Type: "AWS::AutoScaling::ScalingPolicy"
     Properties:
       AdjustmentType: "ChangeInCapacity"
@@ -128,8 +206,7 @@ Resources:
       MinAdjustmentMagnitude: 1
       PolicyType: "SimpleScaling"
       ScalingAdjustment: -1
-
-  ClojureCPUAlarmHigh:
+  CPUAlarmHigh:
     Type: "AWS::CloudWatch::Alarm"
     Properties:
       ActionsEnabled: Yes
@@ -147,8 +224,7 @@ Resources:
       Statistic: "Average"
       Threshold: "75"
       Unit: "Percent"
-
-  ClojureCPUAlarmLow:
+  CPUAlarmLow:
     Type: "AWS::CloudWatch::Alarm"
     Properties:
       ActionsEnabled: Yes
@@ -166,19 +242,35 @@ Resources:
       Statistic: "Average"
       Threshold: "75"
       Unit: "Percent"
-
-  ClojureCollectorElasticLoadBalancer:
+  Listener:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties:
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn: !Ref "ClojureCollectorGroup"
+      LoadBalancerArn: !Ref "ElasticLoadBalancer"
+      Port: 8080
+      Protocol: HTTP
+  ElasticLoadBalancer:
     Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
     Properties:
       Name: "clojure-test-elb"
       Scheme: "internet-facing"
       SecurityGroups:
-        - String
+        - !Ref "WebSecurityGroup"
       Subnets:
         - String
-      Tags:
-        - Resource Tag
-
-
+  ELBTargetGroup:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties:
+      HealthCheckIntervalSeconds: 60
+      UnhealthyThresholdCount: 10
+      HealthCheckPath: /
+      Name: ClojureTargetGroup
+      Port: 8080
+      Protocol: HTTP
+      VpcId: !Ref "WorkingVPC"
 Outputs:
-  set of outputs
+  ELB:
+    Description: The ElasticLoadBalancer URL.
+    Value: !Join [ "" [ http://, !GetAtt [ ElasticLoadBalancer, DNSName ] ] ]
