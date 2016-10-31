@@ -134,7 +134,7 @@ Resources:
       MinSize: "1"
       MaxSize: "10"
       MetricsCollection:
-        - Grenularity: 5Minute
+        - Granularity: 5Minute
         - Metrics:
           - "CPUUtilization"
       LaunchConfigurationName: !Ref "ClojureCollectorLaunchConfig"
