@@ -131,12 +131,9 @@ Resources:
     Properties:
       AvailabilityZones:
         Fn::GetAZs: ""
+      DesiredCapacity: "1"
       MinSize: "1"
       MaxSize: "10"
-      MetricsCollection:
-        - Granularity: 5Minute
-        - Metrics:
-          - "CPUUtilization"
       LaunchConfigurationName: !Ref "ClojureCollectorLaunchConfig"
       NotificationConfigurations:
       - TopicARN: !Ref "NotificationTopic"
@@ -147,6 +144,12 @@ Resources:
       HealthCheckType: "EC2"
       LoadBalancerNames:
         - !Ref "ElasticLoadBalancer"
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MinInstancesInService: '1'
+        MaxBatchSize: '2'
+        WaitOnResourceSignals: 'true'
+        PauseTime: PT10M
   ClojureCollectorLaunchConfig:
     Type: "AWS::AutoScaling::LaunchConfiguration"
     Properties:
@@ -201,34 +204,34 @@ Resources:
     Properties:
       AlarmActions:
       - !Ref "ScaleUpPolicy"
-      AlarmDescription: "Scale-up if CPU > 90% for 1 minute"
+      AlarmDescription: "Scale-up if CPU > 70% for 10 minute"
       ComparisonOperator: "GreaterThanThreshold"
       Dimensions:
       - Name: "AutoScalingGroupName"
         Value: !Ref "ClojureCollectorGroup"
-      EvaluationPeriods: "3"
+      EvaluationPeriods: "2"
       MetricName: "CPUUtilization"
       Namespace: "AWS/EC2"
-      Period: "60"
+      Period: "300"
       Statistic: "Average"
-      Threshold: "90"
+      Threshold: "70"
       Unit: "Percent"
   CPUAlarmLow:
     Type: "AWS::CloudWatch::Alarm"
     Properties:
       AlarmActions:
       - !Ref "ScaleDownPolicy"
-      AlarmDescription: "Scale-down if CPU < 70% for 5 minutes"
+      AlarmDescription: "Scale-down if CPU < 20% for 10 minutes"
       ComparisonOperator: "LessThanThreshold"
       Dimensions:
       - Name: "AutoScalingGroupName"
         Value: !Ref "ClojureCollectorGroup"
-      EvaluationPeriods: "3"
+      EvaluationPeriods: "2"
       MetricName: "CPUUtilization"
       Namespace: "AWS/EC2"
       Period: "300"
       Statistic: "Average"
-      Threshold: "70"
+      Threshold: "20"
       Unit: "Percent"
   ElasticLoadBalancer:
     Type: "AWS::ElasticLoadBalancing::LoadBalancer"
