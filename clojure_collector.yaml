@@ -96,7 +96,7 @@ Resources:
               -
                 Effect: "Allow"
                 Action: "s3:GetObject"
-                Resource: !Join [ "" [ arn:aws:s3:::, !Select [0, !Ref "S3ProvisioningBucket"], /* ] ]
+                Resource: !Join [ "", [ arn:aws:s3:::, !Select [0, !Ref "S3ProvisioningBucket" ], /* ] ]
   ClojureInstanceProfile:
     Type: "AWS::IAM::InstanceProfile"
     Properties:
