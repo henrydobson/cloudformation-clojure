@@ -256,6 +256,6 @@ Resources:
         Enabled: 'true'
         Timeout: '60'
 Outputs:
-  ELB:
-    Description: The ElasticLoadBalancer URL.
-    Value: !Join [ "", [ "http://", !GetAtt [ ElasticLoadBalancer, DNSName ], ":8080/" ] ]
+  TestResultURL:
+    Description: The URL to confirm success or failure or test.
+    Value: !Join [ "", [ "http://", !GetAtt [ ElasticLoadBalancer, DNSName ], ":8080/clojure-collector-1.1.0-standalone/i" ] ]
