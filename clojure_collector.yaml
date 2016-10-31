@@ -8,7 +8,7 @@ Parameters:
   OperatorEmail:
     Description: Email address to notify if there are any scaling operations
     Type: String
-    AllowedPattern: ([a-zA-Z0-9_\\-\\.]+)@((\\[[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.)|(([a-zA-Z0-9\\-]+\\.)+))([a-zA-Z]{2,4}|[0-9]{1,3})(\\]?)
+    AllowedPattern: "([a-zA-Z0-9_\\-\\.]+)@((\\[[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.)|(([a-zA-Z0-9\\-]+\\.)+))([a-zA-Z]{2,4}|[0-9]{1,3})(\\]?)"
     ConstraintDescription: Must be a valid email address.
   KeyPair:
     Description: Amazon EC2 KeyPair
@@ -19,8 +19,8 @@ Parameters:
     Type: String
     MinLength: 9
     MaxLength: 18
-    Default: 0.0.0.0/0
-    AllowedPattern: (\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})
+    Default: "0.0.0.0/0"
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
     ConstraintDescription: Must be valid IP CIDR range in the form of x.x.x.x/x
   AWSRegion:
     Description: The desired AWS Region.
@@ -62,8 +62,10 @@ Mappings:
       testing: "ami-0e10557d"
       production: "ami-d41d58a7"
   EnviromentTypeToInstanceType:
-    testing: t1.micro
-    production: m1.small
+    testing:
+      "64": t1.micro
+    production:
+      "64": m1.small
 Conditions:
   CreateProductionResources: !Equals [ !Ref EnvironmentType, production ]
 Resources:
@@ -96,7 +98,7 @@ Resources:
               -
                 Effect: "Allow"
                 Action: "s3:GetObject"
-                Resource: !Join [ "", [ arn:aws:s3:::, !Select [0, !Ref "S3ProvisioningBucket" ], /* ] ]
+                Resource: !Join [ "", [ "arn:aws:s3:::", !Select [ 0, !Ref "S3ProvisioningBucket" ], "/*" ] ]
   ClojureInstanceProfile:
     Type: "AWS::IAM::InstanceProfile"
     Properties:
@@ -156,7 +158,7 @@ Resources:
     Properties:
       AssociatePublicIpAddress: False
       SecurityGroups:
-        - !Ref "ClojureSecurityGroup"
+        - !Ref "InstanceSecurityGroup"
       BlockDeviceMappings:
         - DeviceName: "/dev/sda1"
           Ebs:
@@ -165,29 +167,26 @@ Resources:
       EbsOptimized: False
       IamInstanceProfile: !Ref "ClojureInstanceProfile"
       ImageId:
-        !FindInMap [ "RegionAndInstanceTypeToAMIID", Ref: "AWS::Region", Ref: "EnvironmentType"  ]
+        !FindInMap [ "RegionAndInstanceTypeToAMIID", Ref: "AWS::Region", Ref: "EnvironmentType" ]
       InstanceType:
-        !FindInMap [ "EnviromentTypeToInstanceType", Ref: "EnvironmentType" ]
+        !FindInMap [ "EnviromentTypeToInstanceType", Ref: "EnvironmentType", 64 ]
       InstanceMonitoring: false
       KeyName: !Ref "KeyPair"
       SecurityGroups:
-        - !Ref "ClojureSecurityGroup"
+        - !Ref "InstanceSecurityGroup"
       UserData:
-        !Base64:
-          !Sub
+        !Base64
+          Fn::Sub:
             - |
               #!/bin/bash -xe
-
               #aws s3 cp ${s3url} /root/.ssh/bitbucket_secret_key
               #chmod 400 /root/.ssh/bitbucket_secret_key
-
               #aws s3 cp ${s3url} /root/.ssh/config
               #chmod 600 /root/.ssh/config
-
               yum update -y
               yum install -y git ansible
               ansible-pull -d ~/playbooks/ansible-tomcat -i 'localhost,' -U https://github.com/henrydobson/ansible-tomcat.git --accept-host-key
-            - { s3url: !Join [ / [ s3:/, !Select [0, !Ref "S3ProvisioningBucket"], !Select [1, !Ref "S3ProvisioningBucket"] ] ] }
+            - { s3url: !Join [ /, [ "s3:/", !Select [0, !Ref "S3ProvisioningBucket"], !Select [1, !Ref "S3ProvisioningBucket"] ] ] }
   ScaleUpPolicy:
     Type: "AWS::AutoScaling::ScalingPolicy"
     Properties:
@@ -211,7 +210,7 @@ Resources:
     Properties:
       ActionsEnabled: Yes
       AlarmActions:
-        - !Ref "ClojureCollectorScaleUpPolicy"
+        - !Ref "ScaleUpPolicy"
       AlarmDescription: "Scale-up if CPU > 75% for 10 minutes"
       ComparisonOperator: "GreaterThanThreshold"
       Dimensions:
@@ -229,7 +228,7 @@ Resources:
     Properties:
       ActionsEnabled: Yes
       AlarmActions:
-        - !Ref "ClojureCollectorScaleDownPolicy"
+        - !Ref "ScaleDownPolicy"
       AlarmDescription: "Scale-up if CPU < 50% for 20 minutes"
       ComparisonOperator: "LessThanThreshold"
       Dimensions:
@@ -273,4 +272,4 @@ Resources:
 Outputs:
   ELB:
     Description: The ElasticLoadBalancer URL.
-    Value: !Join [ "" [ http://, !GetAtt [ ElasticLoadBalancer, DNSName ] ] ]
+    Value: !Join [ "", [ "http://", !GetAtt [ ElasticLoadBalancer, DNSName ] ] ]
